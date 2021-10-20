@@ -535,11 +535,41 @@ messageTypeSwitching:
 	return nil
 }
 
-// tryToProcessErr пытается автоматически решить ошибку полученную от сервера. в случае успеха вернет nil,
-// в случае если нет способа решить эту проблему, возвращается сама ошибка
-// если в процессе решения появлиась еще одна ошибка, то она оборачивается в errors.Wrap, основная
-// игнорируется (потому что гарантируется, что обработка ошибки надежна, и параллельная ошибка это что-то из
-// ряда вон выходящее)
+// Author: Kliton
+// Reconnect to specified DC
+func (m *MTProto) ConnectAgainToDC(dc int) error {
+	newIP, found := m.dclist[dc]
+	if !found {
+		return errors.New(fmt.Sprint("dc", dc, "ip not found"))
+
+	}
+
+	log.Println("Disconnecting conn id", m.ConnId)
+	err := m.Disconnect(m.ConnId)
+	if err != nil {
+		return errors.Wrap(err, "disconnecting")
+	}
+	//time.Sleep(time.Second)
+	m.routineswg.Wait()
+	m.addr = newIP
+	m.encrypted = false
+	//m.sessionId = utils.GenerateSessionID()
+	//m.serviceChannel = make(chan tl.Object)
+	m.serviceModeActivated = false
+	//m.responseChannels = utils.NewSyncIntObjectChan()
+	//m.expectedTypes = utils.NewSyncIntReflectTypes()
+	//m.seqNo = 0
+
+	log.Println("Connecting to IP", newIP)
+
+	err = m.CreateConnection()
+	if err != nil {
+		return errors.Wrap(err, "recreating connection")
+	}
+
+	return errors.New(fmt.Sprint("migration to dc", dc, "failed"))
+}
+
 func (m *MTProto) tryToProcessErr(e *ErrResponseCode) error {
 	switch e.Message {
 	case "PHONE_MIGRATE_X":
